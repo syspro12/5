@@ -1,0 +1,293 @@
+1)*******************************************************************************
+
+#include<stdio.h>
+#include<stdlib.h>       
+
+
+long memory[1000] ;
+int pc , opcode , reg , address ;
+int registers[4] , flag[] = {0,0,0,0,0,1};
+long op1 , op2 ;
+
+main(char *argv[] , int argc)
+{
+	FILE *fp ;
+	int k ;
+		fp = fopen("filename","r") ;
+		if(fp==NULL)
+		{
+			printf("Invalid file name.") ;
+			exit(0) ;
+		}
+		else
+		{	
+			pc = 0 ;
+				
+			while(!feof(fp))
+				fscanf(fp,"%ld",&memory[pc++]) ;
+			k = pc-1 ;
+			
+			pc=0 ;
+			
+			while(1) 
+			{	
+				opcode = memory[pc]/10000 ;
+				reg = ((memory[pc]%10000)/1000) ;
+				address = (memory[pc]%10000)%1000 ;
+				
+				switch(opcode)
+				{
+					case 0 :
+						exit(0) ;
+					break ;
+					
+					case 3 :	
+						registers[reg]+=memory[address] ;
+					break ;
+					
+					case 4 :	
+						registers[reg]-=memory[address] ;
+					break ;
+					
+					case 7 :	
+						registers[reg]*=memory[address] ;
+					break ;      	
+					
+					case 5 :	
+						registers[reg]=memory[address] ;
+					break ;
+					
+					case 6 :	
+						memory[address]=registers[reg] ;
+					break ;
+					
+					case 10 :	
+						op1 = registers[reg] ;
+						op2 = memory[address] ;
+					break ;
+										
+					case 9 :	
+						address = address-1 ;
+						
+						switch(reg)
+						{
+							case 0 :
+								if(op1>op2)
+									pc = address ;
+								printf("\n%daddress : ",pc) ;
+							break ;
+							
+							case 1 :
+								if(op1>=op2)
+									pc = address ;
+							break ;
+							
+							case 2 :
+								if(op1==op2)
+									pc = address ;
+							break ;
+							
+							case 3 :
+								if(op1<op2)
+									pc = address ;
+							break ;
+							
+							case 4 :
+								if(op1<=op2)
+									pc = address ;
+							break ;
+							
+							case 5 :
+								pc = address ;
+							break ;
+						}
+					break ;
+					
+					case 8 :	
+						memory[address]/=registers[reg] ;
+					break ;
+					
+					case 1 :	
+						printf("Enter the value : ") ;
+						scanf("%ld",&memory[address]) ;
+					break ;
+					
+					case 2 :	
+					  if(memory[address]==1)
+						
+					    printf("Number 1 is greater\n");
+					  else
+					    printf("Number 2 is greater\n");
+					break ;
+				}
+				pc++ ;
+			}
+		}
+	return 0 ;
+}
+
+
+2)*******************************************************************
+
+
+#include<stdio.h>
+#include<string.h>
+#define super 0
+#define blksz 64
+#define root 16
+
+unsigned char mem[256][blksz];
+void Setinode(int inode,int filesz,int start,int index)
+{  int i,j;
+   i=inode/16 + 1;
+   j=(inode%16) * 4;
+   mem[i][j]=inode; 
+   mem[i][j+1]=filesz;
+   mem[i][j+2]=start;
+   mem[i][j+3]=index;
+}
+void Setindex(int index, int blk)
+{ int i;
+  for(i=0;i<blksz; i++)
+  { if(mem[index][i]==0) break;
+  }
+  mem[index][i]=blk;
+}
+void dispindexblk(int indx)
+{  int i;
+  for(i=0;i<blksz; i++)
+  { if(mem[indx][i]==0) break;
+    printf("%3d",mem[indx][i]);
+  }
+}
+void Format()
+{ int i,j;
+  for(i=0;i<256;i++)
+     for(j=0;j<blksz;j++) mem[i][j]=0;
+
+  mem[super][0]=15*16;
+  mem[super][1]=1;
+  mem[super][2]=15;
+  mem[super][3]=18;
+  mem[super][4]=16;
+  Setinode(0,blksz,16,17);
+  Setindex(17,16);
+  for(i=18; i<256; i++) mem[i][0]=i+1;
+  mem[255][0]=0;
+}
+int AddDirEntry(int blk,char *fname)
+{int i,j;
+  for(i=0;i<blksz;i=i+8)
+  { if(mem[blk][i]==0) break;
+  }
+  mem[blk][i]=mem[super][1];
+  mem[super][1]++;
+  for(j=0; j<8 && fname[j]!='\0'; j++) mem[blk][i+j+1]=fname[j];
+
+   return mem[blk][i];
+}
+void Create()
+{ 
+  char fn[30];  int i,inode,fsz,strtblk,indxblk,next;
+  printf("\nFile Name : ");  
+  fflush(stdin);
+  scanf("%s",&fn);
+  printf("\nFile Size(in blocks) = ");  scanf("%d",&fsz);
+  inode=AddDirEntry(root,fn);
+
+  indxblk=mem[super][3];
+  mem[super][3]=mem[indxblk][0];
+
+  strtblk=mem[super][3];
+  mem[super][3]=mem[strtblk][0];
+  mem[indxblk][0]=strtblk;
+
+  for(i=1; i<fsz;i++)
+  { next=mem[super][3];
+    mem[indxblk][i]=next;
+    mem[super][3]=mem[next][0];
+  }
+  Setinode(inode,fsz,strtblk,indxblk);
+  printf("%s file created successfully...\n",fn);
+}
+void DispFreeBlks()
+{  int i=mem[super][3];
+   printf("\nFree Space(Blocks) On the Disk : \n");
+   do
+   { printf("%5d",i);
+     i=mem[i][0];
+   }while(mem[i][0]!=0);
+}
+void DispDir()
+{
+  int i,j,inode,blk,k;
+  printf("Space(Blocks) Used by %s File is : \n\n",fn);
+  printf("\n  inode  File   Size Startblk  index");
+  printf("\n---------------------------------------");
+  for(i=0;i<blksz;i=i+8)
+  { if(mem[root][i]==0) continue;
+    inode=mem[root][i];
+    printf("\n%4d  ",inode);
+    for(j=i+1;j<i+8; j++) putchar(mem[root][j]);
+    blk=inode/16+1;
+    k=(inode%16)*4;
+    printf(" %4d   %4d   %4d  |",mem[blk][k+1],mem[blk][k+2],mem[blk][k+3]);
+    dispindexblk(mem[blk][k+3]);
+  }
+}
+void Delete()
+{ char fn[30];  int inode,i,j,k,blk,datablk,indxblk,strtblk,fsz;
+  printf("\nFile Name : ");  fflush(stdin); scanf("%s",&fn);
+  for(i=0;i<blksz;i=i+8)
+  { if(mem[root][i]==0) continue;
+
+    if(!strncmp(&mem[root][i+1],fn,7)) break;
+  }
+  if(i>=blksz)  printf("\nSuch file does not exist!\n");
+  else
+  { inode=mem[root][i];
+    mem[root][i]=0;
+    for(j=i+1;j<i+8; j++)
+    {
+      mem[root][j]=0;
+    }
+    blk=inode/16+1;
+    k=(inode%16)*4;
+    fsz=mem[blk][k+1];
+    strtblk=mem[blk][k+2];
+    indxblk=mem[blk][k+3];
+    for(j=k;j<k+4; j++)  mem[blk][j]=0;
+
+    for(j=0;j<fsz;j++)
+    { datablk=mem[indxblk][j];
+      mem[datablk][0]=mem[indxblk][j+1];
+      mem[indxblk][j]=0;
+    }
+    mem[indxblk][0]=strtblk;
+    mem[datablk][0]=mem[super][3];
+    mem[super][3]=indxblk;
+    printf("%s Deleted successfully..!\n\n",fn);
+  }
+}
+main()
+{
+  Format();
+  int ch;
+  while(1)
+  { 
+    printf("\n1:Create File\n2:Display free blks\n3:Disp Dir\n4:Delete File");
+    printf("\n0:Exit");
+    printf("\nEnter your choice : ");
+    scanf("%d",&ch);
+    switch(ch)
+    { 
+      case 1 : Create(); break;
+      case 2 : DispFreeBlks(); break;
+      case 3 : DispDir(); break;
+      case 4 : Delete(); break;
+      case 0 : exit(0);
+      default : printf("\n Please Choose Correct Choice..!");
+    }
+   }
+}
+
